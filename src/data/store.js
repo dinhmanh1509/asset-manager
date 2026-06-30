@@ -114,6 +114,7 @@ function rowToAsset(row) {
     value: Number(row.value) || 0,
     note: row.note || '',
     history: row.history || [],
+    photoUrl: row.photo_url || '',
   }
 }
 
@@ -129,6 +130,7 @@ function assetToRow(asset) {
     value: Number(asset.value) || 0,
     note: asset.note || '',
     history: asset.history || [],
+    photo_url: asset.photoUrl || '',
   }
 }
 
@@ -181,6 +183,32 @@ export async function upsertAsset(asset) {
   const { error } = await supabase.from('assets').upsert(assetToRow(asset))
   if (error) throw error
   return asset
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+// Tải ảnh lên Supabase Storage (bucket "asset-photos") và trả về link công khai.
+// Nếu chưa cấu hình Supabase, chuyển ảnh thành dạng dữ liệu nhúng (dataURL) để
+// vẫn xem được trong bản demo cục bộ — chỉ nên dùng ảnh nhỏ trong trường hợp này.
+export async function uploadAssetPhoto(file, assetId) {
+  if (!isSupabaseConfigured) {
+    return fileToDataUrl(file)
+  }
+  const ext = file.name.split('.').pop() || 'jpg'
+  const path = `${assetId}-${Date.now()}.${ext}`
+  const { error } = await supabase.storage.from('asset-photos').upload(path, file, {
+    upsert: true,
+  })
+  if (error) throw error
+  const { data } = supabase.storage.from('asset-photos').getPublicUrl(path)
+  return data.publicUrl
 }
 
 export async function deleteAsset(id) {

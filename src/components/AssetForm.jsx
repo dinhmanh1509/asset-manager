@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { CATEGORIES, STATUSES } from '../data/store'
+import { useRef, useState } from 'react'
+import { CATEGORIES, STATUSES, uploadAssetPhoto } from '../data/store'
 
 const emptyAsset = {
   id: '',
@@ -11,14 +11,35 @@ const emptyAsset = {
   purchaseDate: '',
   value: 0,
   note: '',
+  photoUrl: '',
 }
 
 export default function AssetForm({ initial, generatedId, onSave, onDelete, onClose, onScanRequest, onHandoverRequest }) {
   const isNew = !initial
   const [form, setForm] = useState(initial ?? { ...emptyAsset, id: generatedId })
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
+  const fileInputRef = useRef(null)
 
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }))
+  }
+
+  async function handlePhotoSelect(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    setUploadError('')
+    try {
+      const url = await uploadAssetPhoto(file, form.id)
+      update('photoUrl', url)
+    } catch (err) {
+      setUploadError('Tải ảnh lên thất bại. Kiểm tra lại bucket "asset-photos" trên Supabase.')
+      console.error(err)
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
   }
 
   function handleSubmit(e) {
@@ -42,6 +63,30 @@ export default function AssetForm({ initial, generatedId, onSave, onDelete, onCl
           <button type="button" className="asset-form__scan-btn" onClick={() => onScanRequest((code) => update('id', code))}>
             Quét mã ↗
           </button>
+        </div>
+
+        <div className="asset-form__photo">
+          {form.photoUrl ? (
+            <div className="asset-form__photo-preview">
+              <img src={form.photoUrl} alt={form.name || 'Ảnh tài sản'} />
+              <button type="button" onClick={() => update('photoUrl', '')}>
+                Xóa ảnh
+              </button>
+            </div>
+          ) : (
+            <label className="asset-form__photo-upload">
+              {uploading ? 'Đang tải ảnh lên…' : '📷 Thêm ảnh tài sản'}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handlePhotoSelect}
+                disabled={uploading}
+              />
+            </label>
+          )}
+          {uploadError && <span className="asset-form__photo-error">{uploadError}</span>}
         </div>
 
         <label>
@@ -197,6 +242,49 @@ export default function AssetForm({ initial, generatedId, onSave, onDelete, onCl
           font-weight: 600;
           font-size: 12.5px;
           cursor: pointer;
+        }
+        .asset-form__photo-upload {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 120px;
+          border: 1.5px dashed #ccc4b0;
+          border-radius: var(--radius-sm);
+          color: var(--ink-text-muted);
+          font-size: 13.5px;
+          font-weight: 500;
+          cursor: pointer;
+        }
+        .asset-form__photo-upload input {
+          display: none;
+        }
+        .asset-form__photo-preview {
+          position: relative;
+          border-radius: var(--radius-sm);
+          overflow: hidden;
+        }
+        .asset-form__photo-preview img {
+          width: 100%;
+          height: 160px;
+          object-fit: cover;
+          display: block;
+        }
+        .asset-form__photo-preview button {
+          position: absolute;
+          top: 8px;
+          right: 8px;
+          background: rgba(20, 24, 31, 0.75);
+          color: #fff;
+          border: none;
+          border-radius: 7px;
+          padding: 6px 10px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+        .asset-form__photo-error {
+          font-size: 11.5px;
+          color: var(--danger);
         }
         .asset-form label {
           display: flex;

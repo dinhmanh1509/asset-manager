@@ -24,6 +24,10 @@ export default function AssetCard({ asset, onClick }) {
         {asset.assignee && <div className="asset-card__assignee">Người dùng: {asset.assignee}</div>}
       </div>
 
+      {asset.photoUrl && (
+        <img className="asset-card__thumb" src={asset.photoUrl} alt={asset.name} />
+      )}
+
       <style>{`
         .asset-card {
           display: flex;
@@ -100,6 +104,14 @@ export default function AssetCard({ asset, onClick }) {
           margin-top: 6px;
           font-size: 12px;
           color: var(--text-muted);
+        }
+        .asset-card__thumb {
+          width: 64px;
+          height: 64px;
+          object-fit: cover;
+          flex-shrink: 0;
+          margin: 12px 12px 12px 0;
+          border-radius: 9px;
         }
       `}</style>
     </button>

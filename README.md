@@ -4,6 +4,8 @@ App web (chạy tốt trên điện thoại qua trình duyệt) với 4 tính n�
 - Danh sách tài sản, tìm kiếm theo tên/mã/người dùng, lọc theo danh mục và trạng thái
 - Thêm / sửa / xóa tài sản
 - Quét mã QR/barcode bằng camera điện thoại (dùng BarcodeDetector của trình duyệt; nếu thiết bị chưa hỗ trợ, có ô nhập mã thủ công)
+- Bàn giao tài sản: chuyển người sử dụng, ký tên xác nhận, lưu lịch sử
+- Đính kèm ảnh thực tế của tài sản (chụp trực tiếp bằng camera điện thoại hoặc chọn ảnh có sẵn)
 - Báo cáo: tổng giá trị, thống kê theo trạng thái/danh mục, xuất file Excel (.xlsx)
 
 ## Chạy thử trên máy tính
@@ -33,6 +35,7 @@ App hỗ trợ 2 chế độ lưu dữ liệu:
 
 1. Tạo project miễn phí tại https://supabase.com (đăng nhập bằng GitHub).
 2. Vào **SQL Editor**, chạy nội dung file `supabase-schema.sql` đi kèm trong thư mục này (tạo bảng `assets` + bật chia sẻ realtime).
+3. Vào **Storage** (thanh bên trái) → **New bucket** → đặt tên đúng `asset-photos` → bật **Public bucket** → **Create bucket**. Đây là nơi lưu ảnh tài sản.
 3. Vào **Project Settings → API**, copy 2 giá trị: **Project URL** và **anon public key**.
 4. Trong thư mục project, copy file `.env.example` thành `.env` (file mới, bỏ chữ `.example`), điền 2 giá trị vừa copy vào:
    ```
