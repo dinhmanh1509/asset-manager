@@ -13,7 +13,7 @@ const emptyAsset = {
   note: '',
 }
 
-export default function AssetForm({ initial, generatedId, onSave, onDelete, onClose, onScanRequest }) {
+export default function AssetForm({ initial, generatedId, onSave, onDelete, onClose, onScanRequest, onHandoverRequest }) {
   const isNew = !initial
   const [form, setForm] = useState(initial ?? { ...emptyAsset, id: generatedId })
 
@@ -108,6 +108,38 @@ export default function AssetForm({ initial, generatedId, onSave, onDelete, onCl
             {isNew ? 'Thêm tài sản' : 'Lưu thay đổi'}
           </button>
         </div>
+
+        {!isNew && (
+          <>
+            <button
+              type="button"
+              className="asset-form__handover-btn"
+              onClick={() => onHandoverRequest(form)}
+            >
+              ↪ Bàn giao tài sản này
+            </button>
+
+            {form.history && form.history.length > 0 && (
+              <div className="asset-form__history">
+                <h3>Lịch sử bàn giao</h3>
+                {[...form.history].reverse().map((h) => (
+                  <div className="asset-form__history-item" key={h.id}>
+                    <div className="asset-form__history-row">
+                      <span>{h.fromUser}</span>
+                      <span>→</span>
+                      <span>{h.toUser}</span>
+                      <span className="asset-form__history-date mono">{h.date}</span>
+                    </div>
+                    {h.note && <div className="asset-form__history-note">{h.note}</div>}
+                    {h.signature && (
+                      <img className="asset-form__history-sig" src={h.signature} alt={`Chữ ký của ${h.toUser}`} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </form>
 
       <style>{`
@@ -216,6 +248,61 @@ export default function AssetForm({ initial, generatedId, onSave, onDelete, onCl
           color: var(--ink);
           font-weight: 700;
           cursor: pointer;
+        }
+        .asset-form__handover-btn {
+          padding: 12px;
+          border-radius: var(--radius-sm);
+          border: 1px solid var(--ink-text);
+          background: none;
+          color: var(--ink-text);
+          font-weight: 600;
+          font-size: 13.5px;
+          cursor: pointer;
+        }
+        .asset-form__history {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          border-top: 1px solid #ddd7c9;
+          padding-top: 12px;
+        }
+        .asset-form__history h3 {
+          margin: 0;
+          font-size: 12.5px;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          color: var(--ink-text-muted);
+        }
+        .asset-form__history-item {
+          background: var(--paper-dim);
+          border-radius: var(--radius-sm);
+          padding: 10px 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .asset-form__history-row {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 13px;
+          flex-wrap: wrap;
+        }
+        .asset-form__history-date {
+          margin-left: auto;
+          font-size: 11.5px;
+          color: var(--ink-text-muted);
+        }
+        .asset-form__history-note {
+          font-size: 12.5px;
+          color: var(--ink-text-muted);
+        }
+        .asset-form__history-sig {
+          height: 50px;
+          align-self: flex-start;
+          border-radius: 6px;
+          background: #fff;
+          border: 1px solid #ddd7c9;
         }
       `}</style>
     </div>

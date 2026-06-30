@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import AssetList from './components/AssetList'
 import AssetForm from './components/AssetForm'
+import HandoverModal from './components/HandoverModal'
 import QRScanner from './components/QRScanner'
 import Reports from './components/Reports'
 import { loadAssets, saveAssets, nextAssetId } from './data/store'
@@ -11,6 +12,7 @@ export default function App() {
   const [editing, setEditing] = useState(null) // asset being edited, or null
   const [showForm, setShowForm] = useState(false)
   const [scannerTarget, setScannerTarget] = useState(null) // callback to receive scanned code
+  const [handoverAsset, setHandoverAsset] = useState(null) // asset currently being handed over
 
   function persist(next) {
     setAssets(next)
@@ -44,6 +46,22 @@ export default function App() {
   function handleScanResult(code) {
     if (scannerTarget) scannerTarget(code)
     setScannerTarget(null)
+  }
+
+  function handleHandoverConfirm(record) {
+    const next = assets.map((a) =>
+      a.id === handoverAsset.id
+        ? {
+            ...a,
+            assignee: record.toUser,
+            status: 'in-use',
+            history: [...(a.history || []), record],
+          }
+        : a
+    )
+    persist(next)
+    setHandoverAsset(null)
+    setShowForm(false)
   }
 
   return (
@@ -80,6 +98,15 @@ export default function App() {
           onDelete={handleDelete}
           onClose={() => setShowForm(false)}
           onScanRequest={(cb) => setScannerTarget(() => cb)}
+          onHandoverRequest={(asset) => setHandoverAsset(asset)}
+        />
+      )}
+
+      {handoverAsset && (
+        <HandoverModal
+          asset={handoverAsset}
+          onConfirm={handleHandoverConfirm}
+          onClose={() => setHandoverAsset(null)}
         />
       )}
 

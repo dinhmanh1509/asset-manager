@@ -24,6 +24,16 @@ function seedData() {
       purchaseDate: '2024-03-12',
       value: 22000000,
       note: '',
+      history: [
+        {
+          id: 'h-seed-1',
+          date: '2024-03-12',
+          fromUser: '(Kho)',
+          toUser: 'Nguyễn Văn A',
+          note: 'Bàn giao khi nhận máy mới',
+          signature: '',
+        },
+      ],
     },
     {
       id: 'TS-0002',
@@ -35,6 +45,7 @@ function seedData() {
       purchaseDate: '2023-08-01',
       value: 1800000,
       note: '',
+      history: [],
     },
     {
       id: 'TS-0003',
@@ -46,6 +57,7 @@ function seedData() {
       purchaseDate: '2022-11-20',
       value: 9500000,
       note: 'Bóng đèn còn khoảng 60% tuổi thọ',
+      history: [],
     },
     {
       id: 'TS-0004',
@@ -57,6 +69,7 @@ function seedData() {
       purchaseDate: '2021-05-09',
       value: 15000000,
       note: 'Hỏng bánh xe, đang chờ phụ tùng',
+      history: [],
     },
     {
       id: 'TS-0005',
@@ -68,6 +81,7 @@ function seedData() {
       purchaseDate: '2020-01-15',
       value: 650000000,
       note: '',
+      history: [],
     },
   ]
 }
@@ -80,7 +94,9 @@ export function loadAssets() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded))
       return seeded
     }
-    return JSON.parse(raw)
+    const parsed = JSON.parse(raw)
+    // Nâng cấp dữ liệu cũ chưa có trường lịch sử bàn giao
+    return parsed.map((a) => ({ history: [], ...a }))
   } catch {
     return seedData()
   }
