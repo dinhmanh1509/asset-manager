@@ -1,6 +1,10 @@
-// Lớp lưu trữ dữ liệu. Hiện dùng localStorage để chạy demo không cần backend.
-// Khi triển khai thật cho nhiều người dùng cùng lúc, thay các hàm bên dưới
-// bằng các lệnh gọi API tới database thật (Supabase/Firebase/...).
+// Lớp lưu trữ dữ liệu.
+// Nếu đã cấu hình Supabase (qua file .env), mọi thao tác đọc/ghi đi thẳng tới
+// database thật, nhiều thiết bị dùng chung sẽ tự đồng bộ qua Realtime.
+// Nếu CHƯA cấu hình Supabase, app tự rơi về lưu bằng localStorage (chỉ trên
+// 1 thiết bị) để vẫn xem được giao diện khi chạy thử nhanh.
+
+import { supabase, isSupabaseConfigured } from '../lib/supabaseClient'
 
 const STORAGE_KEY = 'asset-manager:assets'
 
@@ -11,6 +15,8 @@ export const STATUSES = [
   { value: 'repair', label: 'Đang sửa', color: 'var(--warn)' },
   { value: 'retired', label: 'Đã thanh lý', color: 'var(--danger)' },
 ]
+
+export { isSupabaseConfigured }
 
 function seedData() {
   return [
@@ -86,7 +92,49 @@ function seedData() {
   ]
 }
 
-export function loadAssets() {
+export function nextAssetId(assets) {
+  const nums = assets
+    .map((a) => parseInt(a.id.replace('TS-', ''), 10))
+    .filter((n) => !Number.isNaN(n))
+  const max = nums.length ? Math.max(...nums) : 0
+  return `TS-${String(max + 1).padStart(4, '0')}`
+}
+
+// ---------- Chuyển đổi giữa định dạng app (camelCase) và bảng Supabase (snake_case) ----------
+
+function rowToAsset(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    category: row.category,
+    status: row.status,
+    assignee: row.assignee || '',
+    location: row.location || '',
+    purchaseDate: row.purchase_date || '',
+    value: Number(row.value) || 0,
+    note: row.note || '',
+    history: row.history || [],
+  }
+}
+
+function assetToRow(asset) {
+  return {
+    id: asset.id,
+    name: asset.name,
+    category: asset.category,
+    status: asset.status,
+    assignee: asset.assignee || '',
+    location: asset.location || '',
+    purchase_date: asset.purchaseDate || null,
+    value: Number(asset.value) || 0,
+    note: asset.note || '',
+    history: asset.history || [],
+  }
+}
+
+// ---------- Phương án localStorage (khi chưa cấu hình Supabase) ----------
+
+function localLoad() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) {
@@ -94,22 +142,63 @@ export function loadAssets() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded))
       return seeded
     }
-    const parsed = JSON.parse(raw)
-    // Nâng cấp dữ liệu cũ chưa có trường lịch sử bàn giao
-    return parsed.map((a) => ({ history: [], ...a }))
+    return JSON.parse(raw).map((a) => ({ history: [], ...a }))
   } catch {
     return seedData()
   }
 }
 
-export function saveAssets(assets) {
+function localSaveAll(assets) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(assets))
 }
 
-export function nextAssetId(assets) {
-  const nums = assets
-    .map((a) => parseInt(a.id.replace('TS-', ''), 10))
-    .filter((n) => !Number.isNaN(n))
-  const max = nums.length ? Math.max(...nums) : 0
-  return `TS-${String(max + 1).padStart(4, '0')}`
+// ---------- API thống nhất dùng trong App.jsx ----------
+
+export async function fetchAssets() {
+  if (!isSupabaseConfigured) return localLoad()
+  const { data, error } = await supabase
+    .from('assets')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  if (data.length === 0) {
+    // Bảng trống lần đầu: nạp dữ liệu mẫu để dễ hình dung
+    const seeded = seedData()
+    await supabase.from('assets').insert(seeded.map(assetToRow))
+    return seeded
+  }
+  return data.map(rowToAsset)
+}
+
+export async function upsertAsset(asset) {
+  if (!isSupabaseConfigured) {
+    const all = localLoad()
+    const exists = all.some((a) => a.id === asset.id)
+    const next = exists ? all.map((a) => (a.id === asset.id ? asset : a)) : [asset, ...all]
+    localSaveAll(next)
+    return asset
+  }
+  const { error } = await supabase.from('assets').upsert(assetToRow(asset))
+  if (error) throw error
+  return asset
+}
+
+export async function deleteAsset(id) {
+  if (!isSupabaseConfigured) {
+    localSaveAll(localLoad().filter((a) => a.id !== id))
+    return
+  }
+  const { error } = await supabase.from('assets').delete().eq('id', id)
+  if (error) throw error
+}
+
+// Lắng nghe thay đổi realtime từ thiết bị khác (chỉ hoạt động khi có Supabase).
+// Gọi callback() để App tải lại danh sách mới nhất.
+export function subscribeToAssetChanges(callback) {
+  if (!isSupabaseConfigured) return () => {}
+  const channel = supabase
+    .channel('assets-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'assets' }, callback)
+    .subscribe()
+  return () => supabase.removeChannel(channel)
 }

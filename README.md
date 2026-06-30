@@ -24,9 +24,26 @@ Sau khi chạy `npm run dev`, terminal sẽ hiện thêm một địa chỉ dạ
 
 ## Lưu ý quan trọng về dữ liệu
 
-Bản demo này lưu dữ liệu bằng `localStorage` của trình duyệt — nghĩa là dữ liệu chỉ nằm trên 1 thiết bị/trình duyệt, **chưa dùng chung được cho nhiều nhân viên cùng lúc**. Đây là cách nhanh nhất để bạn xem giao diện và luồng thao tác hoạt động ra sao.
+App hỗ trợ 2 chế độ lưu dữ liệu:
 
-Để dùng thật trong công ty (nhiều người cùng truy cập, dữ liệu đồng bộ), bước tiếp theo là thay thế các hàm trong `src/data/store.js` bằng việc gọi tới một database thật, ví dụ Supabase hoặc Firebase (cả hai đều có gói miễn phí, dễ tích hợp với React). Khi bạn sẵn sàng, mình có thể hướng dẫn/code tiếp phần này.
+- **Chưa cấu hình Supabase**: dữ liệu lưu bằng `localStorage` của trình duyệt, chỉ nằm trên 1 thiết bị, không dùng chung được. Dùng để xem nhanh giao diện.
+- **Đã cấu hình Supabase**: dữ liệu lưu trên database thật, mọi thiết bị mở app đều thấy chung dữ liệu, tự đồng bộ ngay khi có người khác thêm/sửa/xóa (qua Realtime). Đầu trang app sẽ hiện chữ "● Đã đồng bộ" màu xanh khi bật đúng.
+
+### Cách bật chế độ đồng bộ (Supabase)
+
+1. Tạo project miễn phí tại https://supabase.com (đăng nhập bằng GitHub).
+2. Vào **SQL Editor**, chạy nội dung file `supabase-schema.sql` đi kèm trong thư mục này (tạo bảng `assets` + bật chia sẻ realtime).
+3. Vào **Project Settings → API**, copy 2 giá trị: **Project URL** và **anon public key**.
+4. Trong thư mục project, copy file `.env.example` thành `.env` (file mới, bỏ chữ `.example`), điền 2 giá trị vừa copy vào:
+   ```
+   VITE_SUPABASE_URL=https://xxxx.supabase.co
+   VITE_SUPABASE_ANON_KEY=eyJhbGciOi...
+   ```
+5. Chạy lại `npm install` rồi `npm run dev`. Đầu trang sẽ hiện "● Đã đồng bộ" nếu cấu hình đúng.
+
+**Khi deploy lên Vercel**, thêm 2 biến môi trường trên vào project: vào project trên Vercel → **Settings → Environment Variables**, thêm `VITE_SUPABASE_URL` và `VITE_SUPABASE_ANON_KEY` với giá trị tương ứng, rồi **Redeploy**.
+
+File `.env` đã được thêm vào `.gitignore` nên sẽ không bị đẩy nhầm lên GitHub — đây là điều nên làm vì file này chứa thông tin kết nối tới database của bạn.
 
 ## Đưa lên mạng để cả công ty dùng được qua link
 
