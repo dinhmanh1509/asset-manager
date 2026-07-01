@@ -109,7 +109,6 @@ export default function AssetForm({ initial, generatedId, onSave, onDelete, onCl
                 type="file"
                 accept="image/*,video/*"
                 multiple
-                capture="environment"
                 onChange={handleMediaSelect}
                 disabled={uploading}
               />
