@@ -103,6 +103,11 @@ export function nextAssetId(assets) {
 // ---------- Chuyển đổi giữa định dạng app (camelCase) và bảng Supabase (snake_case) ----------
 
 function rowToAsset(row) {
+  // Chuyển đổi photo_url cũ (1 ảnh) sang media array mới nếu cần
+  let media = row.media || []
+  if (!media.length && row.photo_url) {
+    media = [{ type: 'image', url: row.photo_url }]
+  }
   return {
     id: row.id,
     name: row.name,
@@ -114,7 +119,7 @@ function rowToAsset(row) {
     value: Number(row.value) || 0,
     note: row.note || '',
     history: row.history || [],
-    photoUrl: row.photo_url || '',
+    media,
   }
 }
 
@@ -130,7 +135,8 @@ function assetToRow(asset) {
     value: Number(asset.value) || 0,
     note: asset.note || '',
     history: asset.history || [],
-    photo_url: asset.photoUrl || '',
+    media: asset.media || [],
+    photo_url: asset.media?.[0]?.url || '',
   }
 }
 
@@ -185,30 +191,83 @@ export async function upsertAsset(asset) {
   return asset
 }
 
-function fileToDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result)
-    reader.onerror = reject
-    reader.readAsDataURL(file)
+// Nén ảnh về tối đa 1920px và chất lượng JPEG 80% trước khi upload.
+// Giảm ảnh điện thoại từ 5-10MB xuống còn ~200-500KB.
+function compressImage(file, maxPx = 1920, quality = 0.8) {
+  return new Promise((resolve) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      let { width, height } = img
+      if (width > maxPx || height > maxPx) {
+        if (width > height) {
+          height = Math.round((height * maxPx) / width)
+          width = maxPx
+        } else {
+          width = Math.round((width * maxPx) / height)
+          height = maxPx
+        }
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height)
+      canvas.toBlob((blob) => resolve(blob), 'image/jpeg', quality)
+    }
+    img.src = url
   })
 }
 
-// Tải ảnh lên Supabase Storage (bucket "asset-photos") và trả về link công khai.
-// Nếu chưa cấu hình Supabase, chuyển ảnh thành dạng dữ liệu nhúng (dataURL) để
-// vẫn xem được trong bản demo cục bộ — chỉ nên dùng ảnh nhỏ trong trường hợp này.
-export async function uploadAssetPhoto(file, assetId) {
-  if (!isSupabaseConfigured) {
-    return fileToDataUrl(file)
+// Tải 1 file lên Supabase Storage và trả về { type, url }.
+// type: 'image' hoặc 'video'.
+// Nếu chưa cấu hình Supabase, dùng dataURL để vẫn xem được khi demo.
+export async function uploadAssetMedia(file, assetId) {
+  const isVideo = file.type.startsWith('video/')
+  const MAX_VIDEO_MB = 200
+
+  if (isVideo && file.size > MAX_VIDEO_MB * 1024 * 1024) {
+    throw new Error(`Video vượt quá ${MAX_VIDEO_MB}MB. Hãy quay ngắn hơn hoặc giảm chất lượng camera.`)
   }
-  const ext = file.name.split('.').pop() || 'jpg'
-  const path = `${assetId}-${Date.now()}.${ext}`
-  const { error } = await supabase.storage.from('asset-photos').upload(path, file, {
-    upsert: true,
+
+  if (!isSupabaseConfigured) {
+    // Fallback: nhúng file nhỏ vào dataURL (chỉ dùng khi demo, không nên dùng với video lớn)
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve({ type: isVideo ? 'video' : 'image', url: reader.result })
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  }
+
+  let uploadFile = file
+  if (!isVideo) {
+    uploadFile = await compressImage(file)
+  }
+
+  const ext = isVideo ? (file.name.split('.').pop() || 'mp4') : 'jpg'
+  const path = `${assetId}/${Date.now()}.${ext}`
+  const { error } = await supabase.storage.from('asset-photos').upload(path, uploadFile, {
+    upsert: false,
+    contentType: isVideo ? file.type : 'image/jpeg',
   })
   if (error) throw error
   const { data } = supabase.storage.from('asset-photos').getPublicUrl(path)
-  return data.publicUrl
+  return { type: isVideo ? 'video' : 'image', url: data.publicUrl }
+}
+
+export async function deleteAssetMedia(url) {
+  if (!isSupabaseConfigured || !url) return
+  // Lấy path từ URL công khai (phần sau /object/public/asset-photos/)
+  try {
+    const marker = '/object/public/asset-photos/'
+    const idx = url.indexOf(marker)
+    if (idx === -1) return
+    const path = url.slice(idx + marker.length)
+    await supabase.storage.from('asset-photos').remove([path])
+  } catch {
+    // Xóa ảnh thất bại không ảnh hưởng nghiêm trọng, bỏ qua
+  }
 }
 
 export async function deleteAsset(id) {

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { CATEGORIES, STATUSES, uploadAssetPhoto } from '../data/store'
+import { CATEGORIES, STATUSES, uploadAssetMedia, deleteAssetMedia } from '../data/store'
 
 const emptyAsset = {
   id: '',
@@ -12,6 +12,7 @@ const emptyAsset = {
   value: 0,
   note: '',
   photoUrl: '',
+  media: [],
 }
 
 export default function AssetForm({ initial, generatedId, onSave, onDelete, onClose, onScanRequest, onHandoverRequest }) {
@@ -25,21 +26,27 @@ export default function AssetForm({ initial, generatedId, onSave, onDelete, onCl
     setForm((f) => ({ ...f, [field]: value }))
   }
 
-  async function handlePhotoSelect(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  async function handleMediaSelect(e) {
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
     setUploading(true)
     setUploadError('')
     try {
-      const url = await uploadAssetPhoto(file, form.id)
-      update('photoUrl', url)
+      const results = await Promise.all(files.map((f) => uploadAssetMedia(f, form.id)))
+      setForm((f) => ({ ...f, media: [...(f.media || []), ...results] }))
     } catch (err) {
-      setUploadError('Tải ảnh lên thất bại. Kiểm tra lại bucket "asset-photos" trên Supabase.')
+      setUploadError(err.message || 'Tải file lên thất bại. Kiểm tra bucket "asset-photos" trên Supabase.')
       console.error(err)
     } finally {
       setUploading(false)
       e.target.value = ''
     }
+  }
+
+  async function handleRemoveMedia(idx) {
+    const item = form.media[idx]
+    await deleteAssetMedia(item?.url)
+    setForm((f) => ({ ...f, media: f.media.filter((_, i) => i !== idx) }))
   }
 
   function handleSubmit(e) {
@@ -65,28 +72,53 @@ export default function AssetForm({ initial, generatedId, onSave, onDelete, onCl
           </button>
         </div>
 
-        <div className="asset-form__photo">
-          {form.photoUrl ? (
-            <div className="asset-form__photo-preview">
-              <img src={form.photoUrl} alt={form.name || 'Ảnh tài sản'} />
-              <button type="button" onClick={() => update('photoUrl', '')}>
-                Xóa ảnh
-              </button>
-            </div>
-          ) : (
-            <label className="asset-form__photo-upload">
-              {uploading ? 'Đang tải ảnh lên…' : '📷 Thêm ảnh tài sản'}
+        <div className="asset-form__media">
+          <div className="asset-form__media-grid">
+            {(form.media || []).map((item, idx) => (
+              <div className="asset-form__media-item" key={idx}>
+                {item.type === 'video' ? (
+                  <video src={item.url} controls playsInline preload="metadata" />
+                ) : (
+                  <img src={item.url} alt={`Ảnh ${idx + 1}`} />
+                )}
+                <button
+                  type="button"
+                  className="asset-form__media-remove"
+                  onClick={() => handleRemoveMedia(idx)}
+                  aria-label="Xóa"
+                >
+                  ×
+                </button>
+                <span className="asset-form__media-badge">
+                  {item.type === 'video' ? '🎬' : '🖼'}
+                </span>
+              </div>
+            ))}
+
+            <label className={`asset-form__media-add ${uploading ? 'uploading' : ''}`}>
+              {uploading ? (
+                <span className="asset-form__media-spinner">⏳ Đang tải…</span>
+              ) : (
+                <>
+                  <span>+</span>
+                  <span>Thêm ảnh / video</span>
+                </>
+              )}
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,video/*"
+                multiple
                 capture="environment"
-                onChange={handlePhotoSelect}
+                onChange={handleMediaSelect}
                 disabled={uploading}
               />
             </label>
-          )}
+          </div>
           {uploadError && <span className="asset-form__photo-error">{uploadError}</span>}
+          <span className="asset-form__media-hint">
+            Ảnh tự nén. Video tối đa ~1 phút (dưới 200MB).
+          </span>
         </div>
 
         <label>
@@ -243,44 +275,83 @@ export default function AssetForm({ initial, generatedId, onSave, onDelete, onCl
           font-size: 12.5px;
           cursor: pointer;
         }
-        .asset-form__photo-upload {
+        .asset-form__media {
           display: flex;
-          align-items: center;
-          justify-content: center;
-          height: 120px;
-          border: 1.5px dashed #ccc4b0;
-          border-radius: var(--radius-sm);
-          color: var(--ink-text-muted);
-          font-size: 13.5px;
-          font-weight: 500;
-          cursor: pointer;
+          flex-direction: column;
+          gap: 6px;
         }
-        .asset-form__photo-upload input {
-          display: none;
+        .asset-form__media-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 8px;
         }
-        .asset-form__photo-preview {
+        .asset-form__media-item {
           position: relative;
-          border-radius: var(--radius-sm);
+          aspect-ratio: 1;
+          border-radius: 9px;
           overflow: hidden;
+          background: var(--paper-dim);
         }
-        .asset-form__photo-preview img {
+        .asset-form__media-item img,
+        .asset-form__media-item video {
           width: 100%;
-          height: 160px;
+          height: 100%;
           object-fit: cover;
           display: block;
         }
-        .asset-form__photo-preview button {
+        .asset-form__media-remove {
           position: absolute;
-          top: 8px;
-          right: 8px;
-          background: rgba(20, 24, 31, 0.75);
+          top: 4px;
+          right: 4px;
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          background: rgba(20,24,31,0.75);
           color: #fff;
           border: none;
-          border-radius: 7px;
-          padding: 6px 10px;
-          font-size: 12px;
-          font-weight: 600;
+          font-size: 16px;
+          line-height: 1;
           cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .asset-form__media-badge {
+          position: absolute;
+          bottom: 4px;
+          left: 4px;
+          font-size: 13px;
+        }
+        .asset-form__media-add {
+          aspect-ratio: 1;
+          border: 1.5px dashed #ccc4b0;
+          border-radius: 9px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 2px;
+          color: var(--ink-text-muted);
+          font-size: 12px;
+          cursor: pointer;
+        }
+        .asset-form__media-add > span:first-child {
+          font-size: 22px;
+          line-height: 1;
+        }
+        .asset-form__media-add.uploading {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+        .asset-form__media-add input {
+          display: none;
+        }
+        .asset-form__media-spinner {
+          font-size: 12px;
+        }
+        .asset-form__media-hint {
+          font-size: 11px;
+          color: var(--ink-text-muted);
         }
         .asset-form__photo-error {
           font-size: 11.5px;

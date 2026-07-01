@@ -22,10 +22,19 @@ export default function AssetCard({ asset, onClick }) {
           <span>{asset.location || 'Chưa rõ vị trí'}</span>
         </div>
         {asset.assignee && <div className="asset-card__assignee">Người dùng: {asset.assignee}</div>}
+        {asset.media?.length > 0 && (
+          <div className="asset-card__media-count">
+            📎 {asset.media.length} file đính kèm
+          </div>
+        )}
       </div>
 
-      {asset.photoUrl && (
-        <img className="asset-card__thumb" src={asset.photoUrl} alt={asset.name} />
+      {(asset.media?.[0]?.type === 'image' || asset.photoUrl) && (
+        <img
+          className="asset-card__thumb"
+          src={asset.media?.[0]?.url || asset.photoUrl}
+          alt={asset.name}
+        />
       )}
 
       <style>{`
@@ -103,6 +112,11 @@ export default function AssetCard({ asset, onClick }) {
         .asset-card__assignee {
           margin-top: 6px;
           font-size: 12px;
+          color: var(--text-muted);
+        }
+        .asset-card__media-count {
+          margin-top: 4px;
+          font-size: 11px;
           color: var(--text-muted);
         }
         .asset-card__thumb {
